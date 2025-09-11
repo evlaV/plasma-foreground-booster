@@ -63,6 +63,13 @@ static const Property<OptionalQULongLong> memorySwapMaxProp = {&KApplicationScop
                                                                true,
                                                                std::numeric_limits<qulonglong>::max()};
 
+static const Property<OptionalCGroupDBusDeviceMemoryLimit> deviceMemoryLowProp =
+                                                              {&KApplicationScopePrivate::m_deviceMemoryLow,
+                                                               &KApplicationScope::deviceMemoryLowChanged,
+                                                               QStringLiteral("DeviceMemoryLow"),
+                                                               true,
+                                                               {}};
+
 static const QHash<QString, const Property<OptionalQULongLong> *> qullProps = {
     {cpuQuotaProp.systemdName, &cpuQuotaProp},
     {cpuQuotaPeriodProp.systemdName, &cpuQuotaPeriodProp},
@@ -171,6 +178,11 @@ OptionalQULongLong KApplicationScope::memorySwapMax() const
     return d_ptr->getProperty<OptionalQULongLong>(memorySwapMaxProp);
 }
 
+OptionalCGroupDBusDeviceMemoryLimit KApplicationScope::deviceMemoryLow() const
+{
+    return d_ptr->getProperty<OptionalCGroupDBusDeviceMemoryLimit>(deviceMemoryLowProp);
+}
+
 void KApplicationScope::setCpuQuota(const OptionalQULongLong &quota)
 {
     d_ptr->trySetProperty<OptionalQULongLong>(cpuQuotaProp, quota);
@@ -216,6 +228,11 @@ void KApplicationScope::setMemorySwapMax(const OptionalQULongLong &memorySwapMax
     d_ptr->trySetProperty<OptionalQULongLong>(memorySwapMaxProp, memorySwapMax);
 }
 
+void KApplicationScope::setDeviceMemoryLow(const OptionalCGroupDBusDeviceMemoryLimit &deviceMemoryLow)
+{
+    d_ptr->trySetProperty<OptionalCGroupDBusDeviceMemoryLimit>(deviceMemoryLowProp, deviceMemoryLow);
+}
+
 void KApplicationScope::stop()
 {
     d_ptr->stop();
@@ -258,6 +275,8 @@ KApplicationScopePrivate::KApplicationScopePrivate(const QString &path, const QS
     parseId();
     qDBusRegisterMetaType<QVariantMultiMap>();
     qDBusRegisterMetaType<QVariantMultiItem>();
+    qDBusRegisterMetaType<CGroupDeviceMemoryLimitList>();
+    qDBusRegisterMetaType<CGroupDeviceMemoryLimit>();
 
     // Try to fill cache for all properties.
     const auto interface = path.endsWith(QStringLiteral("_2escope")) ? systemd1Scope
@@ -313,7 +332,7 @@ template<typename T>
 QVariant KApplicationScopePrivate::defaultIfNull(const Property<T> &prop, const T &opt)
 {
     // Convert null value to default if there is one
-    return opt ? *opt : prop.hasDefault ? prop.defaultValue : QVariant();
+    return opt ? QVariant::fromValue(*opt) : prop.hasDefault ? QVariant::fromValue(prop.defaultValue) : QVariant();
 }
 
 template<typename T>
@@ -345,6 +364,7 @@ template<typename T>
 void KApplicationScopePrivate::trySetProperty(const Property<T> &prop, T opt)
 {
     if (this->*prop.privateMember != opt) {
+        auto stdString = prop.systemdName.toStdString();
         saveProperty(prop, opt);
         const auto reply = m_unit->SetProperties(true, {{prop.systemdName, defaultIfNull(prop, opt)}});
         const auto *watcher = new QDBusPendingCallWatcher(reply, q_ptr);
