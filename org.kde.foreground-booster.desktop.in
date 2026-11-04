@@ -26,3 +26,4 @@ Exec=@KDE_INSTALL_FULL_BINDIR@/foreground_booster
 X-systemd-skip=true
 X-KDE-autostart-condition=kcgroupsrc:Foreground Booster:autostart:false
 X-KDE-Wayland-Interfaces=org_kde_plasma_window_management
+NoDisplay=true
